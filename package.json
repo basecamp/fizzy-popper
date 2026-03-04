@@ -1,0 +1,45 @@
+{
+  "name": "fizzy-popper",
+  "version": "0.1.0",
+  "description": "AI agents for your Fizzy boards",
+  "type": "module",
+  "bin": {
+    "fizzy-popper": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "fizzy",
+    "ai",
+    "agents",
+    "kanban"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@clack/prompts": "^0.9.1",
+    "@hono/node-server": "^1.13.8",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "execa": "^9.5.2",
+    "hono": "^4.7.4",
+    "openai": "^4.82.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
+  }
+}
