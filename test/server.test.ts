@@ -236,7 +236,7 @@ describe("WebhookServer", () => {
         const { server } = getApp(makeConfig(), router)
         await webhookRequest(server, JSON.stringify(makeWebhookEvent()))
 
-        expect(router.loadBoardConfigs).toHaveBeenCalled()
+        expect(router.loadBoardConfigs).toHaveBeenCalledWith(["board-1"])
       })
     })
   })

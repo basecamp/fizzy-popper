@@ -55,9 +55,15 @@ export class WebhookServer {
         return c.json({ status: "duplicate" }, 200)
       }
 
+      // Claim the event ID before dispatch to prevent concurrent duplicates
+      this.recentEventIds.add(event.id)
+      this.pruneRecentEvents()
+
       // Route event
       log.event(event.action, `card event from ${event.board.name}`)
       const action = this.router.routeEvent(event, this.supervisor.activeCardIds())
+
+      const boardIds = this.config.boards !== "all" ? this.config.boards : undefined
 
       try {
         switch (action.type) {
@@ -68,19 +74,18 @@ export class WebhookServer {
             this.supervisor.cancel(action.cardId, action.reason)
             break
           case "refresh_golden_tickets":
-            await this.router.loadBoardConfigs()
+            await this.router.loadBoardConfigs(boardIds)
             break
           case "ignore":
             break
         }
       } catch (err) {
+        // Release the event ID so Fizzy can retry
+        this.recentEventIds.delete(event.id)
         const message = err instanceof Error ? err.message : String(err)
         log.error(`Dispatch error: ${message}`)
         return c.json({ error: "dispatch failed" }, 500)
       }
-
-      this.recentEventIds.add(event.id)
-      this.pruneRecentEvents()
 
       return c.json({ status: "ok" }, 200)
     })
@@ -114,6 +119,9 @@ export class WebhookServer {
 
   start(): void {
     const port = this.config.webhook.port
+    if (!this.config.webhook.secret) {
+      log.warn("No webhook secret configured — webhook signature verification is disabled")
+    }
     this.server = serve({ fetch: this.app.fetch, port })
     log.dim(`Webhook server listening on :${port}`)
   }

@@ -1,7 +1,6 @@
 import type { Config } from "./config.js"
 import type { FizzyCard, FizzyClient, FizzyWebhookEvent, GoldenTicket } from "./fizzy.js"
 import { isGoldenTicket, parseGoldenTicket } from "./fizzy.js"
-import * as log from "./log.js"
 
 // ── Route decision ──
 
@@ -102,11 +101,8 @@ export class Router {
       }
 
       case "comment_created": {
-        const comment = eventable as FizzyCard & { card?: { id: string } }
-        // For comment events, the eventable is the Comment — we need the card
-        // The comment includes card.id, but we may need to fetch the full card
-        // For now, return ignore and let reconciler handle re-triggers
-        if (activeCardIds.has((eventable as any).card?.id)) {
+        const comment = eventable as { card?: { id: string } }
+        if (comment.card?.id && activeCardIds.has(comment.card.id)) {
           return { type: "ignore", reason: "agent already running for this card" }
         }
         return { type: "ignore", reason: "comment re-trigger handled by reconciler" }

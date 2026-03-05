@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from "commander"
-import chalk from "chalk"
 import { loadConfig, configExists } from "./config.js"
 import { FizzyClient } from "./fizzy.js"
 import { Router } from "./router.js"
@@ -88,7 +87,7 @@ program
       log.board(board.name, board.url)
       const columns = await client.listColumns(board.id)
       for (const col of columns) {
-        console.log(`      ${col.name}`)
+        log.dim(`  ${col.name}`)
       }
     }
   })
@@ -111,16 +110,11 @@ async function start(): Promise<void> {
   // Display board summary
   const boardConfigs = router.getBoardConfigs()
   for (const [, bc] of boardConfigs) {
-    console.log()
-    console.log(`  ${chalk.bold(bc.boardName)}`)
-    if (bc.goldenTickets.size === 0) {
-      console.log(`    ${chalk.dim("no golden tickets found")}`)
-    }
+    log.board(bc.boardName, bc.goldenTickets.size === 0 ? "no golden tickets found" : "")
     for (const [, ticket] of bc.goldenTickets) {
-      console.log(`    ${ticket.column_name} ${chalk.dim(`(golden ticket: #${ticket.backend})`)}`)
+      log.column(ticket.column_name, ticket.backend)
     }
   }
-  console.log()
 
   // Start reconciler (polling)
   const reconciler = new Reconciler(config, client, router, supervisor, boardIds)

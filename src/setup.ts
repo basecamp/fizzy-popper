@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts"
 import chalk from "chalk"
-import { saveConfig, configPath } from "./config.js"
+import { saveConfig } from "./config.js"
 import { FizzyClient, type FizzyBoard } from "./fizzy.js"
 import { detectBackends } from "./agent.js"
 
