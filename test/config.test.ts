@@ -136,6 +136,13 @@ describe("config", () => {
       expect(() => loadConfig(tempDir)).toThrow()
     })
 
+    it("throws a friendly error on invalid YAML", () => {
+      const dir = join(tempDir, ".fizzy-popper")
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, "config.yml"), "fizzy:\n  token: \"unterminated", "utf-8")
+      expect(() => loadConfig(tempDir)).toThrow(/Failed to parse/)
+    })
+
     it("accepts boards as 'all' string", () => {
       writeConfig({
         fizzy: { token: "fz_t", account: "a" },

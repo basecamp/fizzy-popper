@@ -71,7 +71,13 @@ export function loadConfig(cwd: string = process.cwd()): Config {
   }
 
   const raw = readFileSync(path, "utf-8")
-  const parsed = parseYaml(raw)
+  let parsed: unknown
+  try {
+    parsed = parseYaml(raw)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Failed to parse ${path}: ${message}`)
+  }
 
   // Resolve env vars
   const resolved = resolveEnvVars(parsed)
