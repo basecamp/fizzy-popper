@@ -34,7 +34,7 @@ export class WebhookServer {
         const signature = c.req.header("X-Webhook-Signature") ?? ""
         const timestamp = c.req.header("X-Webhook-Timestamp") ?? ""
 
-        if (!verifyWebhookSignature(body, signature, timestamp, this.config.webhook.secret)) {
+        if (!verifyWebhookSignature(body, signature, this.config.webhook.secret)) {
           return c.json({ error: "invalid signature" }, 401)
         }
 
@@ -54,26 +54,33 @@ export class WebhookServer {
       if (this.recentEventIds.has(event.id)) {
         return c.json({ status: "duplicate" }, 200)
       }
-      this.recentEventIds.add(event.id)
-      this.pruneRecentEvents()
 
       // Route event
       log.event(event.action, `card event from ${event.board.name}`)
       const action = this.router.routeEvent(event, this.supervisor.activeCardIds())
 
-      switch (action.type) {
-        case "spawn":
-          await this.supervisor.spawn(action.card, action.goldenTicket)
-          break
-        case "cancel":
-          this.supervisor.cancel(action.cardId, action.reason)
-          break
-        case "refresh_golden_tickets":
-          await this.router.loadBoardConfigs()
-          break
-        case "ignore":
-          break
+      try {
+        switch (action.type) {
+          case "spawn":
+            await this.supervisor.spawn(action.card, action.goldenTicket)
+            break
+          case "cancel":
+            this.supervisor.cancel(action.cardId, action.reason)
+            break
+          case "refresh_golden_tickets":
+            await this.router.loadBoardConfigs()
+            break
+          case "ignore":
+            break
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        log.error(`Dispatch error: ${message}`)
+        return c.json({ error: "dispatch failed" }, 500)
       }
+
+      this.recentEventIds.add(event.id)
+      this.pruneRecentEvents()
 
       return c.json({ status: "ok" }, 200)
     })

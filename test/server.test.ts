@@ -166,6 +166,32 @@ describe("WebhookServer", () => {
       })
     })
 
+    describe("dedup after dispatch", () => {
+      it("does not dedup if dispatch throws", async () => {
+        const router = makeMockRouter()
+        const supervisor = makeMockSupervisor()
+        ;(router.routeEvent as ReturnType<typeof vi.fn>).mockReturnValue({
+          type: "spawn",
+          card: makeCard(),
+          goldenTicket: makeGoldenTicket(),
+        })
+        ;(supervisor.spawn as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"))
+
+        const { server } = getApp(makeConfig(), router, supervisor)
+        const event = makeWebhookEvent({ id: "retry-event" })
+        const body = JSON.stringify(event)
+
+        const response1 = await webhookRequest(server, body)
+        expect(response1.status).toBe(500)
+
+        // Same event should be retryable (not deduped)
+        ;(supervisor.spawn as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined)
+        const response2 = await webhookRequest(server, body)
+        expect(response2.status).toBe(200)
+        expect((await response2.json()).status).toBe("ok")
+      })
+    })
+
     describe("route action dispatch", () => {
       it("calls supervisor.spawn for spawn actions", async () => {
         const router = makeMockRouter()
