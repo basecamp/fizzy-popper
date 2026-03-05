@@ -179,6 +179,35 @@ describe("Reconciler", () => {
     expect(supervisor.spawn).not.toHaveBeenCalled()
   })
 
+  it("guards against concurrent ticks", async () => {
+    // Make loadBoardConfigs take a while
+    let resolveLoad!: () => void
+    ;(router.loadBoardConfigs as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      return new Promise<void>(r => { resolveLoad = r })
+    })
+
+    reconciler = new Reconciler(makeConfig({ polling: { interval: 1000 } }), client, router as Router, supervisor as Supervisor, [])
+    reconciler.start()
+
+    // First tick is in progress
+    expect(router.loadBoardConfigs).toHaveBeenCalledTimes(1)
+
+    // Trigger another tick while first is still running
+    await vi.advanceTimersByTimeAsync(1000)
+
+    // Second tick should be skipped because first is still running
+    expect(router.loadBoardConfigs).toHaveBeenCalledTimes(1)
+
+    // Let first tick complete
+    resolveLoad()
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Now a new tick should be able to run
+    ;(router.loadBoardConfigs as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(router.loadBoardConfigs).toHaveBeenCalledTimes(2)
+  })
+
   it("handles errors gracefully without crashing", async () => {
     ;(router.loadBoardConfigs as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("API down"))
 

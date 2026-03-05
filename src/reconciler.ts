@@ -11,6 +11,7 @@ export class Reconciler {
   private router: Router
   private supervisor: Supervisor
   private timer: ReturnType<typeof setInterval> | null = null
+  private ticking = false
   private boardIds: string[]
 
   constructor(
@@ -41,6 +42,8 @@ export class Reconciler {
   }
 
   private async tick(): Promise<void> {
+    if (this.ticking) return
+    this.ticking = true
     try {
       // Refresh golden tickets
       await this.router.loadBoardConfigs(this.boardIds.length > 0 ? this.boardIds : undefined)
@@ -80,6 +83,8 @@ export class Reconciler {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       log.error(`Reconciliation error: ${message}`)
+    } finally {
+      this.ticking = false
     }
   }
 }
