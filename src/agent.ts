@@ -50,9 +50,11 @@ export function buildPrompt(
   parts.push(goldenTicket.description)
   parts.push("")
 
-  // Golden ticket checklist
+  // Golden ticket checklist — presented as tasks to follow
   if (goldenTicket.steps.length > 0) {
-    parts.push(`## Checklist`)
+    parts.push(`## Steps to Follow`)
+    parts.push("")
+    parts.push(`Complete each of these steps in order. Address every unchecked item in your response:`)
     parts.push("")
     for (const step of goldenTicket.steps) {
       const check = step.completed ? "[x]" : "[ ]"

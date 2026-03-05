@@ -24,7 +24,8 @@ describe("buildPrompt", () => {
       ],
     })
     const prompt = buildPrompt(ticket, makeCard(), [])
-    expect(prompt).toContain("## Checklist")
+    expect(prompt).toContain("## Steps to Follow")
+    expect(prompt).toContain("Complete each of these steps in order")
     expect(prompt).toContain("- [ ] Check security")
     expect(prompt).toContain("- [x] Review tests")
   })
@@ -32,7 +33,7 @@ describe("buildPrompt", () => {
   it("omits checklist section when no steps", () => {
     const ticket = makeGoldenTicket({ steps: [] })
     const prompt = buildPrompt(ticket, makeCard(), [])
-    expect(prompt).not.toContain("## Checklist")
+    expect(prompt).not.toContain("## Steps to Follow")
   })
 
   it("includes card title and number", () => {
