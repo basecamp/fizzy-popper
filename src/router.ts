@@ -93,7 +93,6 @@ export class Router {
       case "card_triaged":
       case "card_published": {
         const card = eventable as FizzyCard
-        if (isGoldenTicket(card)) return { type: "ignore", reason: "golden ticket card" }
         if (activeCardIds.has(card.id)) return { type: "ignore", reason: "already running" }
 
         const goldenTicket = this.findGoldenTicket(card)
@@ -115,6 +114,7 @@ export class Router {
 
       case "card_closed":
       case "card_postponed":
+      case "card_auto_postponed":
       case "card_sent_back_to_triage": {
         const card = eventable as FizzyCard
         if (activeCardIds.has(card.id)) {
@@ -125,7 +125,6 @@ export class Router {
 
       case "card_reopened": {
         const card = eventable as FizzyCard
-        if (isGoldenTicket(card)) return { type: "ignore", reason: "golden ticket card" }
         if (activeCardIds.has(card.id)) return { type: "ignore", reason: "already running" }
 
         const goldenTicket = this.findGoldenTicket(card)

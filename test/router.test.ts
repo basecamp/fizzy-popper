@@ -195,6 +195,22 @@ describe("Router", () => {
       })
     })
 
+    describe("card_auto_postponed", () => {
+      it("cancels running agent", () => {
+        const card = makeCard()
+        const event = makeWebhookEvent({ action: "card_auto_postponed" as any, eventable: card })
+        const action = router.routeEvent(event, new Set(["card-1"]))
+        expect(action.type).toBe("cancel")
+      })
+
+      it("ignores when no agent running", () => {
+        const card = makeCard()
+        const event = makeWebhookEvent({ action: "card_auto_postponed" as any, eventable: card })
+        const action = router.routeEvent(event, new Set())
+        expect(action.type).toBe("ignore")
+      })
+    })
+
     describe("card_reopened", () => {
       it("spawns agent for reopened card in agent column", () => {
         const card = makeCard({ column: makeColumn({ id: "col-1" }) })
