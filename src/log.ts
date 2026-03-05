@@ -38,11 +38,11 @@ export function agentStep(message: string): void {
   console.log(`  ${ICONS.arrow} ${message}`)
 }
 
-export function agentSuccess(cardNumber: number, durationSec: number, action: string): void {
+export function agentSuccess(durationSec: number, action: string): void {
   console.log(`  ${ICONS.arrow} ${chalk.green(`Completed`)} (${durationSec.toFixed(1)}s) — ${action}`)
 }
 
-export function agentError(cardNumber: number, error: string): void {
+export function agentError(error: string): void {
   console.log(`  ${ICONS.arrow} ${chalk.red(`Failed`)} — ${error}`)
 }
 
@@ -51,11 +51,11 @@ export function info(message: string): void {
 }
 
 export function warn(message: string): void {
-  console.log(`${chalk.yellow(ICONS.warn)} ${chalk.yellow(message)}`)
+  console.error(`${chalk.yellow(ICONS.warn)} ${chalk.yellow(message)}`)
 }
 
 export function error(message: string): void {
-  console.log(`${chalk.red(ICONS.error)} ${chalk.red(message)}`)
+  console.error(`${chalk.red(ICONS.error)} ${chalk.red(message)}`)
 }
 
 export function event(action: string, detail: string): void {
