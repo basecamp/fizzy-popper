@@ -83,8 +83,10 @@ export class Supervisor {
 
     run.abort_controller.abort()
     run.status = "cancelled"
+    ;(run as any).cancelled = true
     this.active.delete(cardId)
     this.recent.push({ ...run, finished_at: new Date() })
+    if (this.recent.length > 50) this.recent.splice(0, this.recent.length - 50)
 
     log.agentStep(`Cancelled card #${run.card_number}: ${reason}`)
   }
@@ -102,41 +104,47 @@ export class Supervisor {
   // ── Internal execution ──
 
   private async executeAgent(card: FizzyCard, goldenTicket: GoldenTicket, run: AgentRun): Promise<void> {
+    const cancelled = () => (run as any).cancelled === true
+
     try {
       // Fetch full card data + comments
+      log.agentStep(`Fetching card #${card.number} data...`)
       const [fullCard, comments] = await Promise.all([
         this.client.getCard(card.number),
         this.client.listComments(card.number),
       ])
 
+      if (cancelled()) return
+
       // Build prompt
+      log.agentStep(`Building prompt (${comments.length} comments)...`)
       const prompt = buildPrompt(goldenTicket, fullCard, comments)
 
       // Create and execute backend
       const backend = createBackend(goldenTicket.backend, this.config)
+      log.agentStep(`Running ${backend.name}...`)
       const result = await backend.execute(prompt, {
         timeout: this.config.agent.timeout,
         signal: run.abort_controller.signal,
       })
 
-      if (run.abort_controller.signal.aborted) {
-        run.status = "cancelled"
-        this.active.delete(card.id)
-        this.recent.push({ ...run, result, finished_at: new Date() })
-        return
-      }
+      if (cancelled()) return
 
       if (result.success) {
         run.status = "succeeded"
         const durationSec = (Date.now() - run.started_at.getTime()) / 1000
 
         // Post result as comment
+        log.agentStep(`Posting result (${result.output.length} chars)...`)
         await this.client.postComment(card.number, result.output)
 
+        if (cancelled()) return
+
         // Execute on_complete action
+        log.agentStep(`Executing on_complete: ${goldenTicket.on_complete}`)
         const actionDesc = await this.executeOnComplete(card, goldenTicket)
 
-        log.agentSuccess(card.number, durationSec, actionDesc)
+        log.agentSuccess(durationSec, actionDesc)
       } else {
         run.status = "failed"
 
@@ -147,19 +155,23 @@ export class Supervisor {
         // Tag card with pi-error
         try { await this.client.toggleTag(card.number, "pi-error") } catch { /* best effort */ }
 
-        log.agentError(card.number, result.error ?? "Unknown error")
+        log.agentError(result.error ?? "Unknown error")
       }
 
       this.active.delete(card.id)
       this.recent.push({ ...run, result, finished_at: new Date() })
+      if (this.recent.length > 50) this.recent.splice(0, this.recent.length - 50)
     } catch (err: unknown) {
-      const isTimeout = err instanceof Error && err.message.includes("timed out")
+      if (cancelled()) return
+
+      const isTimeout = err != null && typeof err === "object" && "timedOut" in err && (err as any).timedOut === true
       run.status = isTimeout ? "timed_out" : "failed"
       this.active.delete(card.id)
       this.recent.push({ ...run, finished_at: new Date() })
+      if (this.recent.length > 50) this.recent.splice(0, this.recent.length - 50)
 
       const message = err instanceof Error ? err.message : String(err)
-      log.agentError(card.number, message)
+      log.agentError(message)
 
       // Best-effort error comment
       try {
@@ -194,6 +206,9 @@ export class Supervisor {
     }
 
     // Default: just comment
+    if (action !== "comment") {
+      log.warn(`Unrecognized on_complete action: ${action}`)
+    }
     return "comment posted"
   }
 }
