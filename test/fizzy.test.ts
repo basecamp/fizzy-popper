@@ -83,11 +83,11 @@ describe("parseGoldenTicket", () => {
     expect(ticket!.on_complete).toBe("close")
   })
 
-  it("detects move-to-done", () => {
+  it("detects move-to-done via generic move-to pattern", () => {
     const card = makeGoldenTicketCard({ tags: ["agent-instructions", "move-to-done"] })
     const ticket = parseGoldenTicket(card, "claude")
 
-    expect(ticket!.on_complete).toBe("move:Done")
+    expect(ticket!.on_complete).toBe("move:done")
   })
 
   it("detects move-to-<column> with hyphen-to-space conversion", () => {
@@ -151,34 +151,29 @@ describe("verifyWebhookSignature", () => {
 
   it("accepts valid HMAC-SHA256 signature", () => {
     const signature = createHmac("sha256", secret).update(body).digest("hex")
-    const timestamp = new Date().toISOString()
 
-    expect(verifyWebhookSignature(body, signature, timestamp, secret)).toBe(true)
+    expect(verifyWebhookSignature(body, signature, secret)).toBe(true)
   })
 
   it("rejects invalid signature", () => {
-    const timestamp = new Date().toISOString()
-
-    expect(verifyWebhookSignature(body, "bad-signature-hex-value-aaa", timestamp, secret)).toBe(false)
+    expect(verifyWebhookSignature(body, "bad-signature-hex-value-aaa", secret)).toBe(false)
   })
 
   it("rejects signature with wrong secret", () => {
     const signature = createHmac("sha256", "wrong-secret").update(body).digest("hex")
-    const timestamp = new Date().toISOString()
 
-    expect(verifyWebhookSignature(body, signature, timestamp, secret)).toBe(false)
+    expect(verifyWebhookSignature(body, signature, secret)).toBe(false)
   })
 
   it("rejects signature of different body", () => {
     const otherBody = '{"id":"event-2","action":"card_closed"}'
     const signature = createHmac("sha256", secret).update(otherBody).digest("hex")
-    const timestamp = new Date().toISOString()
 
-    expect(verifyWebhookSignature(body, signature, timestamp, secret)).toBe(false)
+    expect(verifyWebhookSignature(body, signature, secret)).toBe(false)
   })
 
   it("rejects signature with length mismatch", () => {
-    expect(verifyWebhookSignature(body, "short", new Date().toISOString(), secret)).toBe(false)
+    expect(verifyWebhookSignature(body, "short", secret)).toBe(false)
   })
 })
 

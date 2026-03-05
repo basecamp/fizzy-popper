@@ -142,9 +142,10 @@ export class FizzyClient {
       throw new Error(`Fizzy API ${response.status}: ${response.statusText} — ${text}`)
     }
 
-    if (response.status === 204) return undefined as T
+    const text = await response.text()
+    if (!text) return undefined as T
 
-    return response.json() as Promise<T>
+    return JSON.parse(text) as T
   }
 
   private async paginatedRequest<T>(path: string): Promise<T[]> {
@@ -257,7 +258,6 @@ export class FizzyClient {
 export function verifyWebhookSignature(
   body: string,
   signature: string,
-  timestamp: string,
   secret: string,
 ): boolean {
   // HMAC-SHA256 of the raw body using the signing secret
@@ -302,10 +302,6 @@ export function parseGoldenTicket(card: FizzyCard, defaultBackend: string): Gold
   for (const tag of card.tags) {
     if (tag === "close-on-complete") {
       onComplete = "close"
-      break
-    }
-    if (tag === "move-to-done") {
-      onComplete = "move:Done"
       break
     }
     if (tag.startsWith(COMPLETION_TAG_PREFIX)) {
