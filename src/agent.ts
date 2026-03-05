@@ -1,4 +1,4 @@
-import { writeFileSync, unlinkSync, mkdtempSync } from "node:fs"
+import { writeFileSync, rmSync, mkdtempSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { execa } from "execa"
@@ -151,7 +151,7 @@ class CodexBackend implements AgentBackend {
     try {
       const result = await execa(
         "codex",
-        ["exec", "--json", "--ephemeral", prompt],
+        ["exec", "--model", model, "--json", "--ephemeral", prompt],
         { timeout: options.timeout, cancelSignal: options.signal },
       )
       let output = result.stdout
@@ -178,6 +178,7 @@ class OpenCodeBackend implements AgentBackend {
   async execute(prompt: string, options: BackendOptions): Promise<AgentResult> {
     const start = Date.now()
     try {
+      // OpenCode CLI does not support a --model flag
       const result = await execa(
         "opencode",
         ["-p", prompt, "-f", "json", "-q"],
@@ -221,10 +222,10 @@ class AnthropicBackend implements AgentBackend {
         model,
         max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
-      })
+      }, { signal: options.signal })
       const output = message.content
-        .filter(block => block.type === "text")
-        .map(block => (block as { type: "text"; text: string }).text)
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
+        .map(block => block.text)
         .join("\n")
       return {
         output,
@@ -262,7 +263,7 @@ class OpenAIBackend implements AgentBackend {
         model,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 4096,
-      })
+      }, { signal: options.signal })
       const output = completion.choices[0]?.message?.content ?? ""
       return {
         output,
@@ -296,7 +297,8 @@ class CommandBackend implements AgentBackend {
     const promptFile = join(tempDir, "prompt.md")
     writeFileSync(promptFile, prompt, "utf-8")
 
-    const cmd = this.command.replace(/\{prompt_file\}/g, promptFile)
+    const escaped = promptFile.replace(/'/g, "'\\''")
+    const cmd = this.command.replace(/\{prompt_file\}/g, `'${escaped}'`)
 
     try {
       const result = await execa("bash", ["-c", cmd], {
@@ -312,7 +314,7 @@ class CommandBackend implements AgentBackend {
       const message = err instanceof Error ? err.message : String(err)
       return { output: "", success: false, error: message }
     } finally {
-      try { unlinkSync(promptFile) } catch { /* ignore */ }
+      try { rmSync(tempDir, { recursive: true }) } catch { /* ignore */ }
     }
   }
 }
@@ -335,15 +337,15 @@ export function createBackend(name: string, config: Config): AgentBackend {
 
 export async function detectBackends(): Promise<string[]> {
   const detected: string[] = []
-  const checks: Array<{ name: string; command: string }> = [
-    { name: "claude", command: "claude --version" },
-    { name: "codex", command: "codex --version" },
-    { name: "opencode", command: "opencode --version" },
+  const checks: Array<{ name: string; cmd: string; args: string[] }> = [
+    { name: "claude", cmd: "claude", args: ["--version"] },
+    { name: "codex", cmd: "codex", args: ["--version"] },
+    { name: "opencode", cmd: "opencode", args: ["--version"] },
   ]
 
   for (const check of checks) {
     try {
-      await execa("bash", ["-c", check.command], { timeout: 5000 })
+      await execa(check.cmd, check.args, { timeout: 5000 })
       detected.push(check.name)
     } catch { /* not installed */ }
   }
