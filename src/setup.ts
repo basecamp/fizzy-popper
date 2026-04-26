@@ -1,11 +1,16 @@
 import * as p from "@clack/prompts"
 import chalk from "chalk"
+import { execFileSync } from "node:child_process"
 import { saveConfig } from "./config.js"
 import { FizzyClient, type FizzyBoard } from "./fizzy.js"
 import { detectBackends } from "./agent.js"
 
+const DEFAULT_FIZZY_API_URL = "https://app.fizzy.do"
+
 export async function runSetup(): Promise<void> {
   p.intro(chalk.bold("fizzy-popper") + " — AI agents for your Fizzy boards")
+  const apiUrl = resolveFizzyApiUrl()
+  p.log.info(`Fizzy API: ${apiUrl}`)
 
   // API token
   const token = await p.text({
@@ -19,7 +24,7 @@ export async function runSetup(): Promise<void> {
 
   // Validate token and get accounts
   const tempClient = new FizzyClient({
-    fizzy: { token: token as string, account: "", api_url: "https://app.fizzy.do" },
+    fizzy: { token: token as string, account: "", api_url: apiUrl },
   } as any)
 
   let identity: Awaited<ReturnType<typeof tempClient.getIdentity>>
@@ -55,7 +60,7 @@ export async function runSetup(): Promise<void> {
 
   // Fetch boards
   const client = new FizzyClient({
-    fizzy: { token: token as string, account: accountSlug, api_url: "https://app.fizzy.do" },
+    fizzy: { token: token as string, account: accountSlug, api_url: apiUrl },
   } as any)
 
   let boards: FizzyBoard[]
@@ -108,7 +113,7 @@ export async function runSetup(): Promise<void> {
     fizzy: {
       token: token as string,
       account: accountSlug,
-      api_url: "https://app.fizzy.do",
+      api_url: apiUrl,
     },
     boards: selectedBoards as string[],
     agent: {
@@ -143,4 +148,23 @@ export async function runSetup(): Promise<void> {
 function cancel(): void {
   p.cancel("Setup cancelled.")
   process.exit(0)
+}
+
+export function resolveFizzyApiUrl(): string {
+  const envUrl = process.env.FIZZY_API_URL?.trim()
+  if (envUrl) return envUrl.replace(/\/$/, "")
+
+  try {
+    const stdout = execFileSync("fizzy", ["config", "show", "--json"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    const parsed = JSON.parse(stdout) as { data?: { api_url?: unknown } }
+    const apiUrl = String(parsed.data?.api_url || "").trim()
+    if (apiUrl) return apiUrl.replace(/\/$/, "")
+  } catch {
+    // If the Fizzy CLI is unavailable or unauthenticated, fall back to hosted Fizzy.
+  }
+
+  return DEFAULT_FIZZY_API_URL
 }

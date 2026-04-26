@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { buildPrompt, createBackend } from "../src/agent.js"
+import { buildPrompt, createBackend, formatBackendError, parseCodexOutput } from "../src/agent.js"
 import { makeCard, makeComment, makeGoldenTicket, makeConfig } from "./fixtures.js"
 
 describe("buildPrompt", () => {
@@ -162,5 +162,40 @@ describe("createBackend", () => {
 
   it("throws for command backend without run config", () => {
     expect(() => createBackend("command", makeConfig())).toThrow("Command backend requires")
+  })
+})
+
+describe("parseCodexOutput", () => {
+  it("extracts the final agent message from Codex JSONL", () => {
+    const raw = [
+      "Reading prompt from stdin...",
+      JSON.stringify({ type: "thread.started", thread_id: "t1" }),
+      JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "<p>Done.</p>" } }),
+      JSON.stringify({ type: "turn.completed" }),
+    ].join("\n")
+
+    expect(parseCodexOutput(raw)).toBe("<p>Done.</p>")
+  })
+
+  it("keeps legacy single-object output support", () => {
+    expect(parseCodexOutput(JSON.stringify({ output: "<p>Legacy.</p>" }))).toBe("<p>Legacy.</p>")
+  })
+})
+
+describe("formatBackendError", () => {
+  it("uses execa shortMessage without raw stdout JSONL", () => {
+    const error = {
+      shortMessage: "Command timed out after 300000 milliseconds: codex exec --json",
+      stdout: [
+        "Reading prompt from stdin...",
+        JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "working" } }),
+      ].join("\n"),
+    }
+
+    expect(formatBackendError(error)).toBe("Command timed out after 300000 milliseconds: codex exec --json")
+  })
+
+  it("keeps only the first line for generic errors", () => {
+    expect(formatBackendError(new Error("first line\nsecond line with JSONL"))).toBe("first line")
   })
 })

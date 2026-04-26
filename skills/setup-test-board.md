@@ -6,11 +6,11 @@ Help me set up a test board on Fizzy to dogfood fizzy-popper. Walk me through it
 
 Here's what we need:
 
-1. **Create a board** (or pick an existing one). Use `fizzy board list` to show what's available, then `fizzy board create --title "Agent Playground"` if we need a new one.
+1. **Create a board** (or pick an existing one). Use `fizzy board list` to show what's available, then `fizzy board create --name "Agent Playground"` if we need a new one.
 
 2. **Create columns**. We need at least two — one for the agent to watch and one for cards to land in after processing. For example:
-   - `fizzy column create --board BOARD_ID --title "Triage"`
-   - `fizzy column create --board BOARD_ID --title "Done"`
+   - `fizzy column create --board BOARD_ID --name "Triage"`
+   - `fizzy column create --board BOARD_ID --name "Done"`
 
 3. **Create a golden ticket** — this is the card that tells fizzy-popper what to do in a column. It needs:
    - A title like "Triage Agent"

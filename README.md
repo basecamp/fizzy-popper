@@ -54,15 +54,15 @@ You need three things: a board, a golden ticket card, and a work card to test wi
 
 ```bash
 # Create a board with columns
-fizzy board create --title "Agent Playground"
-fizzy column create --board BOARD_ID --title "Triage"
-fizzy column create --board BOARD_ID --title "Done"
+fizzy board create --name "Agent Playground"
+fizzy column create --board BOARD_ID --name "Triage"
+fizzy column create --board BOARD_ID --name "Done"
 
 # Create a golden ticket in the Triage column
 fizzy card create --board BOARD_ID --title "Triage Agent" \
   --description "Summarize the card and propose a plan of action as a bulleted list."
 fizzy card tag CARD_NUMBER --tag agent-instructions
-fizzy card tag CARD_NUMBER --tag claude
+fizzy card tag CARD_NUMBER --tag codex
 fizzy card tag CARD_NUMBER --tag move-to-done
 fizzy card column CARD_NUMBER --column TRIAGE_COLUMN_ID
 
@@ -153,6 +153,11 @@ webhook:
 backends:
   claude:
     model: sonnet
+  codex:
+    model: gpt-5.5
+    args:
+      - --sandbox
+      - danger-full-access
   anthropic:
     api_key: $ANTHROPIC_API_KEY
     model: claude-sonnet-4-20250514
