@@ -171,7 +171,7 @@ export function resolveFizzyApiUrl(): string {
 
 function normalizeFizzyApiUrl(raw: unknown): string | null {
   if (typeof raw !== "string") return null
-  const apiUrl = raw.trim().replace(/\/$/, "")
+  const apiUrl = raw.trim().replace(/\/+$/, "")
   if (!apiUrl) return null
 
   try {
