@@ -34,6 +34,22 @@ describe("resolveFizzyApiUrl", () => {
     )
   })
 
+  it("ignores non-string api_url values from the Fizzy CLI", () => {
+    mockedExecFileSync.mockReturnValue(
+      JSON.stringify({ ok: true, data: { api_url: { href: "https://fizzy.example.test" } } }),
+    )
+
+    expect(resolveFizzyApiUrl()).toBe("https://app.fizzy.do")
+  })
+
+  it("ignores invalid api_url values from the Fizzy CLI", () => {
+    mockedExecFileSync.mockReturnValue(
+      JSON.stringify({ ok: true, data: { api_url: "not a url" } }),
+    )
+
+    expect(resolveFizzyApiUrl()).toBe("https://app.fizzy.do")
+  })
+
   it("falls back to hosted Fizzy when CLI config cannot be read", () => {
     mockedExecFileSync.mockImplementation(() => {
       throw new Error("missing fizzy cli")

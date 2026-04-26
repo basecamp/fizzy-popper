@@ -33,7 +33,9 @@ export interface AgentBackend {
 export function parseCodexOutput(raw: string): string {
   try {
     const parsed = JSON.parse(raw)
-    return parsed.output ?? parsed.result ?? raw
+    if (typeof parsed.output === "string") return parsed.output
+    if (typeof parsed.result === "string") return parsed.result
+    return raw
   } catch { /* not a single JSON object */ }
 
   let finalMessage: string | null = null
@@ -207,13 +209,13 @@ class CodexBackend implements AgentBackend {
         "codex",
         [
           "exec",
+          ...this.args,
           "--model",
           model,
           "--json",
           "--ephemeral",
           "--cd",
           process.cwd(),
-          ...this.args,
         ],
         { input: prompt, timeout: options.timeout, cancelSignal: options.signal },
       )

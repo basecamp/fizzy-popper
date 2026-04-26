@@ -151,8 +151,8 @@ function cancel(): void {
 }
 
 export function resolveFizzyApiUrl(): string {
-  const envUrl = process.env.FIZZY_API_URL?.trim()
-  if (envUrl) return envUrl.replace(/\/$/, "")
+  const envUrl = normalizeFizzyApiUrl(process.env.FIZZY_API_URL)
+  if (envUrl) return envUrl
 
   try {
     const stdout = execFileSync("fizzy", ["config", "show", "--json"], {
@@ -160,11 +160,26 @@ export function resolveFizzyApiUrl(): string {
       stdio: ["ignore", "pipe", "ignore"],
     })
     const parsed = JSON.parse(stdout) as { data?: { api_url?: unknown } }
-    const apiUrl = String(parsed.data?.api_url || "").trim()
-    if (apiUrl) return apiUrl.replace(/\/$/, "")
+    const apiUrl = normalizeFizzyApiUrl(parsed.data?.api_url)
+    if (apiUrl) return apiUrl
   } catch {
     // If the Fizzy CLI is unavailable or unauthenticated, fall back to hosted Fizzy.
   }
 
   return DEFAULT_FIZZY_API_URL
+}
+
+function normalizeFizzyApiUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null
+  const apiUrl = raw.trim().replace(/\/$/, "")
+  if (!apiUrl) return null
+
+  try {
+    const parsed = new URL(apiUrl)
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return apiUrl
+  } catch {
+    // Ignore invalid URLs and fall back to the next configured source.
+  }
+
+  return null
 }

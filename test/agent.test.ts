@@ -180,6 +180,12 @@ describe("parseCodexOutput", () => {
   it("keeps legacy single-object output support", () => {
     expect(parseCodexOutput(JSON.stringify({ output: "<p>Legacy.</p>" }))).toBe("<p>Legacy.</p>")
   })
+
+  it("does not return non-string single-object output", () => {
+    const raw = JSON.stringify({ output: { text: "<p>Object.</p>" } })
+
+    expect(parseCodexOutput(raw)).toBe(raw)
+  })
 })
 
 describe("formatBackendError", () => {
