@@ -21,7 +21,7 @@ This is the same approach OpenAI took with Symphony: spec first, implementation 
              │ Agent        │      │ Agent        │
              │ #agent-      │      │ #agent-      │
              │  instructions│      │  instructions│
-             │ #claude      │      │ #anthropic   │
+             │ #codex       │      │ #anthropic   │
              │ #move-to-    │      │ #close-on-   │
              │  code-review │      │  complete    │
              └──────────────┘      └──────────────┘
@@ -77,9 +77,9 @@ fizzy card create --board BOARD_ID --title "Add user authentication" \
 fizzy card column CARD_NUMBER --column TRIAGE_COLUMN_ID
 ```
 
-**Or in the Fizzy UI:** Create a card, tag it `#agent-instructions` and `#claude`, write your prompt in the description, add checklist items as steps, and drag it into the column you want to automate. Then drag a work card into that column and watch the agent go.
+**Or in the Fizzy UI:** Create a card, tag it `#agent-instructions` plus a backend tag like `#codex` or `#claude`, write your prompt in the description, add checklist items as steps, and drag it into the column you want to automate. Then drag a work card into that column and watch the agent go.
 
-**With Claude Code:** Run `/setup-test-board` — there's a built-in skill that walks you through the whole thing using the Fizzy CLI.
+**With an agent CLI:** Run `/setup-test-board` — there's a built-in skill that walks you through the whole thing using the Fizzy CLI. Use `#codex` for Codex, `#claude` for Claude Code, or another supported backend tag.
 
 ## Golden tickets
 
