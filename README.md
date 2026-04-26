@@ -21,7 +21,7 @@ This is the same approach OpenAI took with Symphony: spec first, implementation 
              │ Agent        │      │ Agent        │
              │ #agent-      │      │ #agent-      │
              │  instructions│      │  instructions│
-             │ #claude      │      │ #anthropic   │
+             │ #codex       │      │ #anthropic   │
              │ #move-to-    │      │ #close-on-   │
              │  code-review │      │  complete    │
              └──────────────┘      └──────────────┘
@@ -54,15 +54,15 @@ You need three things: a board, a golden ticket card, and a work card to test wi
 
 ```bash
 # Create a board with columns
-fizzy board create --title "Agent Playground"
-fizzy column create --board BOARD_ID --title "Triage"
-fizzy column create --board BOARD_ID --title "Done"
+fizzy board create --name "Agent Playground"
+fizzy column create --board BOARD_ID --name "Triage"
+fizzy column create --board BOARD_ID --name "Done"
 
 # Create a golden ticket in the Triage column
 fizzy card create --board BOARD_ID --title "Triage Agent" \
   --description "Summarize the card and propose a plan of action as a bulleted list."
 fizzy card tag CARD_NUMBER --tag agent-instructions
-fizzy card tag CARD_NUMBER --tag claude
+fizzy card tag CARD_NUMBER --tag codex
 fizzy card tag CARD_NUMBER --tag move-to-done
 fizzy card column CARD_NUMBER --column TRIAGE_COLUMN_ID
 
@@ -77,9 +77,9 @@ fizzy card create --board BOARD_ID --title "Add user authentication" \
 fizzy card column CARD_NUMBER --column TRIAGE_COLUMN_ID
 ```
 
-**Or in the Fizzy UI:** Create a card, tag it `#agent-instructions` and `#claude`, write your prompt in the description, add checklist items as steps, and drag it into the column you want to automate. Then drag a work card into that column and watch the agent go.
+**Or in the Fizzy UI:** Create a card, tag it `#agent-instructions` plus a backend tag like `#codex` or `#claude`, write your prompt in the description, add checklist items as steps, and drag it into the column you want to automate. Then drag a work card into that column and watch the agent go.
 
-**With Claude Code:** Run `/setup-test-board` — there's a built-in skill that walks you through the whole thing using the Fizzy CLI.
+**With an agent CLI:** Run `/setup-test-board` — there's a built-in skill that walks you through the whole thing using the Fizzy CLI. Use `#codex` for Codex, `#claude` for Claude Code, or another supported backend tag.
 
 ## Golden tickets
 
@@ -153,6 +153,11 @@ webhook:
 backends:
   claude:
     model: sonnet
+  codex:
+    model: gpt-5.5
+    args:
+      - --sandbox
+      - danger-full-access
   anthropic:
     api_key: $ANTHROPIC_API_KEY
     model: claude-sonnet-4-20250514

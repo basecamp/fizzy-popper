@@ -30,6 +30,58 @@ export interface AgentBackend {
   execute(prompt: string, options: BackendOptions): Promise<AgentResult>
 }
 
+export function parseCodexOutput(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed.output === "string") return parsed.output
+    if (typeof parsed.result === "string") return parsed.result
+    return raw
+  } catch { /* not a single JSON object */ }
+
+  let finalMessage: string | null = null
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith("{")) continue
+
+    try {
+      const event = JSON.parse(trimmed)
+      if (
+        event.type === "item.completed" &&
+        event.item?.type === "agent_message" &&
+        typeof event.item.text === "string"
+      ) {
+        finalMessage = event.item.text
+      }
+    } catch { /* ignore non-JSON log lines */ }
+  }
+
+  return finalMessage ?? raw
+}
+
+export function formatBackendError(err: unknown): string {
+  if (err && typeof err === "object") {
+    const data = err as Record<string, unknown>
+    const concise = data.shortMessage ?? data.originalMessage
+    if (typeof concise === "string" && concise.trim()) return concise.trim()
+
+    const command = typeof data.command === "string" ? data.command : ""
+    const timedOut = data.timedOut === true
+    const durationMs = typeof data.durationMs === "number" ? data.durationMs : undefined
+    if (timedOut && command) {
+      const duration = durationMs === undefined ? "" : ` after ${durationMs} milliseconds`
+      return `Command timed out${duration}: ${command}`
+    }
+
+    const exitCode = data.exitCode
+    if (command && (typeof exitCode === "number" || typeof exitCode === "string")) {
+      return `Command failed with exit code ${exitCode}: ${command}`
+    }
+  }
+
+  const message = err instanceof Error ? err.message : String(err)
+  return message.split(/\r?\n/)[0].trim()
+}
+
 // ── Prompt builder ──
 
 export function buildPrompt(
@@ -132,7 +184,7 @@ class ClaudeBackend implements AgentBackend {
         metadata: { duration_ms: Date.now() - start },
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatBackendError(err)
       return { output: "", success: false, error: message }
     }
   }
@@ -142,9 +194,11 @@ class ClaudeBackend implements AgentBackend {
 class CodexBackend implements AgentBackend {
   name = "codex"
   private model: string
+  private args: string[]
 
   constructor(config: Config) {
     this.model = config.backends?.codex?.model ?? "codex-mini"
+    this.args = config.backends?.codex?.args ?? []
   }
 
   async execute(prompt: string, options: BackendOptions): Promise<AgentResult> {
@@ -153,21 +207,26 @@ class CodexBackend implements AgentBackend {
     try {
       const result = await execa(
         "codex",
-        ["exec", "--model", model, "--json", "--ephemeral", prompt],
-        { timeout: options.timeout, cancelSignal: options.signal },
+        [
+          "exec",
+          ...this.args,
+          "--model",
+          model,
+          "--json",
+          "--ephemeral",
+          "--cd",
+          process.cwd(),
+        ],
+        { input: prompt, timeout: options.timeout, cancelSignal: options.signal },
       )
-      let output = result.stdout
-      try {
-        const parsed = JSON.parse(output)
-        output = parsed.output ?? parsed.result ?? output
-      } catch { /* not JSON, use raw stdout */ }
+      const output = parseCodexOutput(result.stdout)
       return {
         output,
         success: true,
         metadata: { duration_ms: Date.now() - start },
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatBackendError(err)
       return { output: "", success: false, error: message }
     }
   }
@@ -197,7 +256,7 @@ class OpenCodeBackend implements AgentBackend {
         metadata: { duration_ms: Date.now() - start },
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatBackendError(err)
       return { output: "", success: false, error: message }
     }
   }
@@ -238,7 +297,7 @@ class AnthropicBackend implements AgentBackend {
         },
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatBackendError(err)
       return { output: "", success: false, error: message }
     }
   }
@@ -276,7 +335,7 @@ class OpenAIBackend implements AgentBackend {
         },
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatBackendError(err)
       return { output: "", success: false, error: message }
     }
   }
@@ -313,7 +372,7 @@ class CommandBackend implements AgentBackend {
         metadata: { duration_ms: Date.now() - start },
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatBackendError(err)
       return { output: "", success: false, error: message }
     } finally {
       try { rmSync(tempDir, { recursive: true }) } catch { /* ignore */ }

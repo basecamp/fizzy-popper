@@ -12,6 +12,7 @@ const BackendConfigSchema = z.object({
   }).optional(),
   codex: z.object({
     model: z.string().default("codex-mini"),
+    args: z.array(z.string()).default([]),
   }).optional(),
   opencode: z.object({}).optional(),
   anthropic: z.object({

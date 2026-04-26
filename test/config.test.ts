@@ -158,12 +158,15 @@ describe("config", () => {
         fizzy: { token: "fz_t", account: "a" },
         backends: {
           claude: { model: "opus" },
+          codex: { model: "gpt-5.5", args: ["--sandbox", "danger-full-access"] },
           command: { run: "my-script {prompt_file}" },
         },
       })
 
       const config = loadConfig(tempDir)
       expect(config.backends.claude?.model).toBe("opus")
+      expect(config.backends.codex?.model).toBe("gpt-5.5")
+      expect(config.backends.codex?.args).toEqual(["--sandbox", "danger-full-access"])
       expect(config.backends.command?.run).toBe("my-script {prompt_file}")
     })
   })
