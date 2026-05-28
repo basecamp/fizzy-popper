@@ -1,4 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
+import {
+  createFizzyClient as createOfficialFizzyClient,
+  type FizzyClient as OfficialFizzyClient,
+} from "@37signals/fizzy"
 import type { Config } from "./config.js"
 
 // ── Domain types ──
@@ -108,148 +112,130 @@ export interface AgentRun {
   abort_controller: AbortController
 }
 
-// ── Fizzy REST client ──
+// ── Fizzy SDK-backed client ──
 
 export class FizzyClient {
   private baseUrl: string
   private account: string
   private token: string
+  private rootClient: OfficialFizzyClient
+  private scopedClient: OfficialFizzyClient | null = null
 
   constructor(config: Config) {
     this.baseUrl = config.fizzy.api_url.replace(/\/$/, "")
     this.account = config.fizzy.account
     this.token = config.fizzy.token
+
+    this.rootClient = createOfficialFizzyClient({
+      accessToken: this.token,
+      baseUrl: this.baseUrl,
+    })
   }
 
-  private url(path: string): string {
-    return `${this.baseUrl}/${this.account}${path}`
-  }
+  private accountClient(): OfficialFizzyClient {
+    if (!this.account) {
+      throw new Error("Fizzy account is required for account-scoped API calls")
+    }
 
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const url = this.url(path)
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Authorization": `Bearer ${this.token}`,
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
+    this.scopedClient ??= createOfficialFizzyClient({
+      accessToken: this.token,
+      baseUrl: `${this.baseUrl}/${encodeURIComponent(this.account)}`,
     })
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => "")
-      throw new Error(`Fizzy API ${response.status}: ${response.statusText} — ${text}`)
-    }
-
-    const text = await response.text()
-    if (!text) return undefined as T
-
-    return JSON.parse(text) as T
+    return this.scopedClient
   }
 
-  private async paginatedRequest<T>(path: string): Promise<T[]> {
-    const results: T[] = []
-    let url: string | null = this.url(path)
-
-    while (url) {
-      const response = await fetch(url, {
-        headers: {
-          "Authorization": `Bearer ${this.token}`,
-          "Accept": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => "")
-        throw new Error(`Fizzy API ${response.status}: ${response.statusText} — ${text}`)
+  private async sdkRequest<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation()
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Fizzy API: ${error.message}`)
       }
-
-      const data = await response.json() as T[]
-      results.push(...data)
-
-      // Parse Link header for next page
-      const link = response.headers.get("Link") || response.headers.get("link")
-      url = parseLinkNext(link)
+      throw error
     }
+  }
 
-    return results
+  private async sdkList<T>(operation: () => Promise<Iterable<T>>): Promise<T[]> {
+    const result = await this.sdkRequest(operation)
+    return [...result]
+  }
+
+  private async sdkMutation(operation: () => Promise<unknown>): Promise<void> {
+    await this.sdkRequest(operation)
+  }
+
+  private cardListOptions(params?: { board_ids?: string[] }): { boardIds?: string[] } | undefined {
+    if (!params?.board_ids?.length) return undefined
+    return { boardIds: params.board_ids }
+  }
+
+  private async accountRequest<T>(operation: (client: OfficialFizzyClient) => Promise<T>): Promise<T> {
+    return this.sdkRequest(() => operation(this.accountClient()))
+  }
+
+  private async list(operation: (client: OfficialFizzyClient) => Promise<Iterable<unknown>>): Promise<unknown[]> {
+    return this.sdkList(() => operation(this.accountClient()))
+  }
+
+  private async mutate(operation: (client: OfficialFizzyClient) => Promise<unknown>): Promise<void> {
+    return this.sdkMutation(() => operation(this.accountClient()))
+  }
+
+  private async root<T>(operation: (client: OfficialFizzyClient) => Promise<T>): Promise<T> {
+    return this.sdkRequest(() => operation(this.rootClient))
   }
 
   // ── Board operations ──
 
   async listBoards(): Promise<FizzyBoard[]> {
-    return this.request<FizzyBoard[]>("/boards")
+    return await this.list(client => client.boards.list()) as FizzyBoard[]
   }
 
   async getBoard(boardId: string): Promise<FizzyBoard> {
-    return this.request<FizzyBoard>(`/boards/${boardId}`)
+    return await this.accountRequest(client => client.boards.get(boardId)) as FizzyBoard
   }
 
   async listColumns(boardId: string): Promise<FizzyColumn[]> {
-    return this.request<FizzyColumn[]>(`/boards/${boardId}/columns`)
+    return await this.list(client => client.columns.list(boardId)) as FizzyColumn[]
   }
 
   // ── Card operations ──
 
   async listCards(params?: { board_ids?: string[] }): Promise<FizzyCard[]> {
-    let path = "/cards"
-    if (params?.board_ids?.length) {
-      const qs = params.board_ids.map(id => `board_ids[]=${encodeURIComponent(id)}`).join("&")
-      path += `?${qs}`
-    }
-    return this.paginatedRequest<FizzyCard>(path)
+    return await this.list(client => client.cards.list(this.cardListOptions(params))) as FizzyCard[]
   }
 
   async getCard(cardNumber: number): Promise<FizzyCard> {
-    return this.request<FizzyCard>(`/cards/${cardNumber}`)
+    return await this.accountRequest(client => client.cards.get(cardNumber)) as FizzyCard
   }
 
   async listComments(cardNumber: number): Promise<FizzyComment[]> {
-    return this.paginatedRequest<FizzyComment>(`/cards/${cardNumber}/comments`)
+    return await this.list(client => client.comments.list(cardNumber)) as FizzyComment[]
   }
 
   // ── Card mutations ──
 
   async closeCard(cardNumber: number): Promise<void> {
-    await this.request<void>(`/cards/${cardNumber}/closure`, { method: "POST" })
+    await this.mutate(client => client.cards.close(cardNumber))
   }
 
   async triageCard(cardNumber: number, columnId: string): Promise<void> {
-    await this.request<void>(`/cards/${cardNumber}/triage`, {
-      method: "POST",
-      body: JSON.stringify({ column_id: columnId }),
-    })
+    await this.mutate(client => client.cards.triage(cardNumber, { columnId }))
   }
 
   async postComment(cardNumber: number, body: string): Promise<void> {
-    await this.request<void>(`/cards/${cardNumber}/comments`, {
-      method: "POST",
-      body: JSON.stringify({ comment: { body } }),
-    })
+    await this.mutate(client => client.comments.create(cardNumber, { body }))
   }
 
   async toggleTag(cardNumber: number, tagTitle: string): Promise<void> {
-    await this.request<void>(`/cards/${cardNumber}/taggings`, {
-      method: "POST",
-      body: JSON.stringify({ tag_title: tagTitle }),
-    })
+    await this.mutate(client => client.cards.tag(cardNumber, { tagTitle }))
   }
 
   // ── Identity ──
 
   async getIdentity(): Promise<{ accounts: Array<{ id: string; name: string; slug: string; user: FizzyUser }> }> {
-    const url = `${this.baseUrl}/my/identity`
-    const response = await fetch(url, {
-      headers: {
-        "Authorization": `Bearer ${this.token}`,
-        "Accept": "application/json",
-      },
-    })
-    if (!response.ok) {
-      throw new Error(`Fizzy API ${response.status}: ${response.statusText}`)
-    }
-    return response.json() as Promise<{ accounts: Array<{ id: string; name: string; slug: string; user: FizzyUser }> }>
+    return this.root(client => client.identity.me()) as Promise<{ accounts: Array<{ id: string; name: string; slug: string; user: FizzyUser }> }>
   }
 }
 
@@ -271,14 +257,6 @@ export function isWebhookFresh(timestamp: string, toleranceSec: number = 300): b
   const eventTime = new Date(timestamp).getTime()
   const now = Date.now()
   return Math.abs(now - eventTime) < toleranceSec * 1000
-}
-
-// ── Helpers ──
-
-function parseLinkNext(header: string | null): string | null {
-  if (!header) return null
-  const match = header.match(/<([^>]+)>;\s*rel="next"/)
-  return match ? match[1] : null
 }
 
 // ── Golden ticket parsing ──
